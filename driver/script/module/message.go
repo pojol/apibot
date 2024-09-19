@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -17,8 +18,8 @@ type Message struct {
 	buff     []byte
 	byteSort string
 	msglen   int
-	br       *bytes.Reader
-	bw       *bytes.Buffer
+	br       *bytes.Reader // 用于读取
+	bw       *bytes.Buffer // 用于写入
 	bs       binary.ByteOrder
 }
 
@@ -139,15 +140,22 @@ func readInt64(L *lua.LState) int {
 }
 
 func readString(L *lua.LState) int {
-
 	p := checkPerson(L)
-	begin := L.CheckNumber(2)
-	end := L.CheckNumber(3)
+	length := L.CheckInt(2)
 
-	if end == -1 {
-		L.Push(lua.LString(p.buff[int(begin):]))
+	if length == -1 {
+		// 读取剩余的所有数据
+		bytes, _ := io.ReadAll(p.br)
+		L.Push(lua.LString(bytes))
 	} else {
-		L.Push(lua.LString(p.buff[int(begin):int(end)]))
+		bytes := make([]byte, length)
+		_, err := io.ReadFull(p.br, bytes)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+		L.Push(lua.LString(bytes))
 	}
 
 	return 1
