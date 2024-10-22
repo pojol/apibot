@@ -21,9 +21,10 @@ func TestLogMod(t *testing.T) {
 	// PreloadModule 只适用于 request 场景
 	//L.PreloadModule("log", logModule.Loader)
 
+	env := "a"
 	// 执行 Lua 脚本
 	if err := L.DoString(`
-		log.info("This is a log message")
+		log.info("This is ` + env + ` message")
 	`); err != nil {
 		panic(err)
 	}

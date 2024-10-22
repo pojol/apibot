@@ -110,7 +110,7 @@ func (t *Tick) Do(mod Mode) (state string, end bool) {
 		}
 
 		if err != nil {
-			log := fmt.Sprintf("<b><u>check err</u></b> thread:%v name:%v id:%v\n%v",
+			log := fmt.Sprintf("<b><u>check err</u></b> thread:%d name:%s id:%s\n%s",
 				n.getBase().getThread(),
 				n.getBase().ID(),
 				n.getBase().Name(),
