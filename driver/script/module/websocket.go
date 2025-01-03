@@ -36,31 +36,70 @@ func NewWebsocketModule() *WebsocketModule {
 
 func (ws *WebsocketModule) Loader(L *lua.LState) int {
 
-	mod := L.SetFuncs(L.NewTable(), map[string]lua.LGFunction{
-		"dail":  ws.dail,
-		"close": ws.Close,
+	// 创建主模块表
+	mod := L.NewTable()
 
-		"read":  ws.readmsg,
-		"write": ws.writemsg,
+	// 创建构造函数
+	constructor := L.NewFunction(func(L *lua.LState) int {
+		// 创建新的 WebsocketModule 实例
 
-		"report": ws.report,
+		wsInstance := NewWebsocketModule()
+
+		// 创建实例的方法表
+		mt := L.NewTable()
+		L.SetFuncs(mt, map[string]lua.LGFunction{
+			"dail":   wsInstance.dail,
+			"close":  wsInstance.Close,
+			"read":   wsInstance.readmsg,
+			"write":  wsInstance.writemsg,
+			"report": wsInstance.report,
+		})
+
+		// 设置 __index 元方法
+		L.SetField(mt, "__index", mt)
+		L.SetFuncs(mt, methods)
+
+		ud := L.NewUserData()
+		ud.Value = wsInstance
+		L.SetMetatable(ud, mt)
+
+		L.Push(ud)
+		return 1
 	})
 
+	// 设置构造函数为模块的 new 方法
+	L.SetField(mod, "new", constructor)
 	L.Push(mod)
-
 	return 1
+
 }
 
 func (ws *WebsocketModule) dail(L *lua.LState) int {
+	// 检查必需参数数量 (self + 3个必需参数)
+	if L.GetTop() < 4 {
+		fmt.Println("Not enough parameters. Expected: self, protocol, addr, port, [path]")
+		return 0
+	}
 
-	err := ws._dail(L.ToString(1), L.ToString(2), L.ToString(3))
+	protocol := L.ToString(2)
+	addr := L.ToString(3)
+	port := L.ToString(4)
+	// path 是可选参数
+	path := "/"
+	if L.GetTop() >= 5 {
+		path = L.ToString(5)
+	}
+
+	fmt.Printf("Dail function called with params: protocol=%s, addr=%s, port=%s, path=%s\n",
+		protocol, addr, port, path)
+
+	err := ws._dail(protocol, addr, port, path)
 	if err != nil {
 		L.Push(lua.LString(err.Error()))
 		return 1
 	}
 
 	L.Push(ErrNil)
-
 	return 1
 }
 
@@ -97,11 +136,11 @@ func (ws *WebsocketModule) _read() {
 	}
 }
 
-func (ws *WebsocketModule) _dail(scheme string, host string, port string) error {
+func (ws *WebsocketModule) _dail(scheme string, host string, port string, path string) error {
 
-	u := url.URL{Scheme: scheme, Host: host + ":" + port, Path: "/ws"}
+	u := url.URL{Scheme: scheme, Host: host + ":" + port, Path: path}
 
-	fmt.Println("dail", u.String())
+	fmt.Println("_dail =>", u.String())
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
@@ -159,7 +198,7 @@ func (ws *WebsocketModule) writemsg(L *lua.LState) int {
 		return 1
 	}
 
-	buf := L.ToString(1)
+	buf := L.ToString(2)
 	err := ws.conn.WriteMessage(websocket.BinaryMessage, []byte(buf))
 	if err != nil {
 		L.Push(lua.LString(err.Error()))
@@ -171,8 +210,8 @@ func (ws *WebsocketModule) writemsg(L *lua.LState) int {
 }
 
 func (t *WebsocketModule) report(L *lua.LState) int {
-	id := L.ToString(1)
-	errmsg := L.ToString(2)
+	id := L.ToString(2)
+	errmsg := L.ToString(3)
 	t.repolst = append(t.repolst, Report{id, errmsg})
 	return 0
 }
